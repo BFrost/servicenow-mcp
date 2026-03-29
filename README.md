@@ -18,6 +18,7 @@ This project implements an MCP server that enables Claude to connect to ServiceN
 - Execute ServiceNow scripts and workflows
 - Access and query the ServiceNow Service Catalog
 - Analyze and optimize the ServiceNow Service Catalog
+- Manage Update Sets (create, activate, and complete)
 - Debug mode for troubleshooting
 - Support for both stdio and Server-Sent Events (SSE) communication
 
@@ -191,6 +192,13 @@ The ServiceNow MCP server provides the following tools:
 6. **publish_changeset** - Publish a changeset
 7. **add_file_to_changeset** - Add a file to a changeset
 
+#### Update Set Management Tools
+
+1. **create_update_set** - Create a new update set in ServiceNow (state defaults to `in progress`)
+2. **set_current_update_set** - Set the active update set for the authenticated user's session
+3. **complete_update_set** - Mark an update set as complete
+4. **list_update_sets** - List update sets with optional state filtering and pagination
+
 #### Knowledge Base Management Tools
 
 1. **create_knowledge_base** - Create a new knowledge base in ServiceNow
@@ -321,6 +329,16 @@ Once the ServiceNow MCP server is configured with Claude Desktop, you can ask Cl
 - "Publish changeset 'sys_update_set_123' to production"
 - "Add a file to changeset 'sys_update_set_123'"
 - "Show me all changes in changeset 'sys_update_set_123'"
+
+#### Update Set Management Examples
+- "Create a new update set called 'Sprint 42 changes'"
+- "Create an update set for the HR portal redesign, targeting release on 2026-06-30"
+- "Set my current update set to 'Sprint 42 changes'"
+- "Switch the active update set to sys_id abc123...'"
+- "Mark the 'Sprint 42 changes' update set as complete"
+- "List all update sets currently in progress"
+- "Show me all completed update sets"
+- "List the last 20 update sets"
 
 #### Knowledge Base Examples
 - "Create a new knowledge base for the IT department"
