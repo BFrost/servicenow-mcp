@@ -213,6 +213,24 @@ from servicenow_mcp.tools.script_include_tools import (
 from servicenow_mcp.tools.script_include_tools import (
     update_script_include as update_script_include_tool,
 )
+from servicenow_mcp.tools.update_set_tools import (
+    CompleteUpdateSetParams,
+    CreateUpdateSetParams,
+    ListUpdateSetsParams,
+    SetCurrentUpdateSetParams,
+)
+from servicenow_mcp.tools.update_set_tools import (
+    complete_update_set as complete_update_set_tool,
+)
+from servicenow_mcp.tools.update_set_tools import (
+    create_update_set as create_update_set_tool,
+)
+from servicenow_mcp.tools.update_set_tools import (
+    list_update_sets as list_update_sets_tool,
+)
+from servicenow_mcp.tools.update_set_tools import (
+    set_current_update_set as set_current_update_set_tool,
+)
 from servicenow_mcp.tools.user_tools import (
     AddGroupMembersParams,
     CreateGroupParams,
@@ -774,6 +792,27 @@ class ServiceNowMCP:
                 self.auth_manager,
                 params,
             )
+
+        # Register update set tools
+        @self.mcp_server.tool()
+        def create_update_set(params: CreateUpdateSetParams) -> Dict[str, Any]:
+            """Create a new update set in ServiceNow"""
+            return create_update_set_tool(self.config, self.auth_manager, params)
+
+        @self.mcp_server.tool()
+        def set_current_update_set(params: SetCurrentUpdateSetParams) -> Dict[str, Any]:
+            """Set the current update set for the authenticated user's session"""
+            return set_current_update_set_tool(self.config, self.auth_manager, params)
+
+        @self.mcp_server.tool()
+        def complete_update_set(params: CompleteUpdateSetParams) -> Dict[str, Any]:
+            """Mark an update set as complete"""
+            return complete_update_set_tool(self.config, self.auth_manager, params)
+
+        @self.mcp_server.tool()
+        def list_update_sets(params: ListUpdateSetsParams) -> Dict[str, Any]:
+            """List update sets from ServiceNow"""
+            return list_update_sets_tool(self.config, self.auth_manager, params)
 
     def start(self):
         """Start the MCP server."""
