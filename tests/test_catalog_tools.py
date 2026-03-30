@@ -9,19 +9,23 @@ import requests
 
 from servicenow_mcp.auth.auth_manager import AuthManager
 from servicenow_mcp.tools.catalog_tools import (
+    CreateCatalogCategoryParams,
+    CreateCatalogItemParams,
+    CreateRecordProducerParams,
     GetCatalogItemParams,
     ListCatalogCategoriesParams,
     ListCatalogItemsParams,
-    CreateCatalogCategoryParams,
-    UpdateCatalogCategoryParams,
     MoveCatalogItemsParams,
+    UpdateCatalogCategoryParams,
+    create_catalog_category,
+    create_catalog_item,
+    create_record_producer,
     get_catalog_item,
     get_catalog_item_variables,
     list_catalog_categories,
     list_catalog_items,
-    create_catalog_category,
-    update_catalog_category,
     move_catalog_items,
+    update_catalog_category,
 )
 from servicenow_mcp.utils.config import AuthConfig, AuthType, BasicAuthConfig, ServerConfig
 
@@ -426,6 +430,137 @@ class TestCatalogTools(unittest.TestCase):
                 f"https://example.service-now.com/api/now/table/sc_cat_item/{params.item_ids[i]}"
             )
             self.assertEqual(kwargs["json"]["category"], "target_category_id")
+
+
+class TestCreateCatalogItem(unittest.TestCase):
+    """Tests for create_catalog_item."""
+
+    def setUp(self):
+        self.config = ServerConfig(
+            instance_url="https://example.service-now.com",
+            auth=AuthConfig(type=AuthType.BASIC, basic=BasicAuthConfig(username="admin", password="password")),
+        )
+        self.auth_manager = MagicMock(spec=AuthManager)
+        self.auth_manager.get_headers.return_value = {"Authorization": "Basic test"}
+
+    def _ok(self, **extra):
+        base = {"sys_id": "item123", "name": "x", "short_description": "", "category": "", "active": "true", "order": ""}
+        base.update(extra)
+        m = MagicMock()
+        m.json.return_value = {"result": base}
+        m.raise_for_status.return_value = None
+        return m
+
+    @patch("servicenow_mcp.tools.catalog_tools.requests.post")
+    def test_success_returns_sys_id(self, mock_post):
+        mock_post.return_value = self._ok(sys_id="item123", name="New Laptop")
+        result = create_catalog_item(self.config, self.auth_manager, CreateCatalogItemParams(name="New Laptop", short_description="A laptop"))
+        self.assertTrue(result.success)
+        self.assertEqual(result.data["sys_id"], "item123")
+        self.assertIn("New Laptop", result.message)
+
+    @patch("servicenow_mcp.tools.catalog_tools.requests.post")
+    def test_posts_to_sc_cat_item_table(self, mock_post):
+        mock_post.return_value = self._ok()
+        create_catalog_item(self.config, self.auth_manager, CreateCatalogItemParams(name="x", short_description="x"))
+        self.assertEqual(mock_post.call_args[0][0], "https://example.service-now.com/api/now/table/sc_cat_item")
+
+    @patch("servicenow_mcp.tools.catalog_tools.requests.post")
+    def test_required_fields_in_body(self, mock_post):
+        mock_post.return_value = self._ok()
+        create_catalog_item(self.config, self.auth_manager, CreateCatalogItemParams(name="My Item", short_description="Desc"))
+        body = mock_post.call_args[1]["json"]
+        self.assertEqual(body["name"], "My Item")
+        self.assertEqual(body["short_description"], "Desc")
+        self.assertEqual(body["active"], "true")
+
+    @patch("servicenow_mcp.tools.catalog_tools.requests.post")
+    def test_optional_fields_omitted_when_none(self, mock_post):
+        mock_post.return_value = self._ok()
+        create_catalog_item(self.config, self.auth_manager, CreateCatalogItemParams(name="x", short_description="x"))
+        body = mock_post.call_args[1]["json"]
+        self.assertNotIn("category", body)
+        self.assertNotIn("price", body)
+        self.assertNotIn("workflow", body)
+
+    @patch("servicenow_mcp.tools.catalog_tools.requests.post")
+    def test_optional_fields_included_when_set(self, mock_post):
+        mock_post.return_value = self._ok()
+        params = CreateCatalogItemParams(name="x", short_description="x", category="cat1", price="50.00", order=10, delivery_time="1 00:00:00")
+        create_catalog_item(self.config, self.auth_manager, params)
+        body = mock_post.call_args[1]["json"]
+        self.assertEqual(body["category"], "cat1")
+        self.assertEqual(body["price"], "50.00")
+        self.assertEqual(body["order"], "10")
+        self.assertEqual(body["delivery_time"], "1 00:00:00")
+
+    @patch("servicenow_mcp.tools.catalog_tools.requests.post")
+    def test_request_exception_returns_failure(self, mock_post):
+        mock_post.side_effect = requests.exceptions.RequestException("timeout")
+        result = create_catalog_item(self.config, self.auth_manager, CreateCatalogItemParams(name="x", short_description="x"))
+        self.assertFalse(result.success)
+        self.assertIn("timeout", result.message)
+
+
+class TestCreateRecordProducer(unittest.TestCase):
+    """Tests for create_record_producer."""
+
+    def setUp(self):
+        self.config = ServerConfig(
+            instance_url="https://example.service-now.com",
+            auth=AuthConfig(type=AuthType.BASIC, basic=BasicAuthConfig(username="admin", password="password")),
+        )
+        self.auth_manager = MagicMock(spec=AuthManager)
+        self.auth_manager.get_headers.return_value = {"Authorization": "Basic test"}
+
+    def _ok(self, **extra):
+        base = {"sys_id": "rp123", "name": "x", "short_description": "", "table_name": "incident", "category": "", "active": "true", "order": ""}
+        base.update(extra)
+        m = MagicMock()
+        m.json.return_value = {"result": base}
+        m.raise_for_status.return_value = None
+        return m
+
+    @patch("servicenow_mcp.tools.catalog_tools.requests.post")
+    def test_success_returns_sys_id_and_table(self, mock_post):
+        mock_post.return_value = self._ok(sys_id="rp123", name="New Incident", table_name="incident")
+        result = create_record_producer(self.config, self.auth_manager, CreateRecordProducerParams(name="New Incident", short_description="Raise an incident", table="incident"))
+        self.assertTrue(result.success)
+        self.assertEqual(result.data["sys_id"], "rp123")
+        self.assertEqual(result.data["table_name"], "incident")
+        self.assertIn("New Incident", result.message)
+
+    @patch("servicenow_mcp.tools.catalog_tools.requests.post")
+    def test_posts_to_sc_cat_item_producer_table(self, mock_post):
+        mock_post.return_value = self._ok()
+        create_record_producer(self.config, self.auth_manager, CreateRecordProducerParams(name="x", short_description="x", table="incident"))
+        self.assertEqual(mock_post.call_args[0][0], "https://example.service-now.com/api/now/table/sc_cat_item_producer")
+
+    @patch("servicenow_mcp.tools.catalog_tools.requests.post")
+    def test_table_name_in_body(self, mock_post):
+        mock_post.return_value = self._ok(table_name="change_request")
+        create_record_producer(self.config, self.auth_manager, CreateRecordProducerParams(name="x", short_description="x", table="change_request"))
+        self.assertEqual(mock_post.call_args[1]["json"]["table_name"], "change_request")
+
+    @patch("servicenow_mcp.tools.catalog_tools.requests.post")
+    def test_script_included_when_set(self, mock_post):
+        mock_post.return_value = self._ok()
+        script = "current.short_description = producer.short_description;"
+        create_record_producer(self.config, self.auth_manager, CreateRecordProducerParams(name="x", short_description="x", table="incident", script=script))
+        self.assertEqual(mock_post.call_args[1]["json"]["script"], script)
+
+    @patch("servicenow_mcp.tools.catalog_tools.requests.post")
+    def test_script_omitted_when_none(self, mock_post):
+        mock_post.return_value = self._ok()
+        create_record_producer(self.config, self.auth_manager, CreateRecordProducerParams(name="x", short_description="x", table="incident"))
+        self.assertNotIn("script", mock_post.call_args[1]["json"])
+
+    @patch("servicenow_mcp.tools.catalog_tools.requests.post")
+    def test_request_exception_returns_failure(self, mock_post):
+        mock_post.side_effect = requests.exceptions.RequestException("connection refused")
+        result = create_record_producer(self.config, self.auth_manager, CreateRecordProducerParams(name="x", short_description="x", table="incident"))
+        self.assertFalse(result.success)
+        self.assertIn("connection refused", result.message)
 
 
 if __name__ == "__main__":

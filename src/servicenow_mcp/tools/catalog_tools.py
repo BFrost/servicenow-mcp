@@ -74,9 +74,40 @@ class UpdateCatalogCategoryParams(BaseModel):
 
 class MoveCatalogItemsParams(BaseModel):
     """Parameters for moving catalog items between categories."""
-    
+
     item_ids: List[str] = Field(..., description="List of catalog item IDs to move")
     target_category_id: str = Field(..., description="Target category ID to move items to")
+
+
+class CreateCatalogItemParams(BaseModel):
+    """Parameters for creating a new service catalog item."""
+
+    name: str = Field(..., description="Display name of the catalog item")
+    short_description: str = Field(..., description="Brief description shown in the catalog")
+    description: Optional[str] = Field(None, description="Full HTML description shown on the item page")
+    category: Optional[str] = Field(None, description="sys_id of the sc_category to place the item in")
+    sc_catalogs: Optional[str] = Field(None, description="sys_id of the service catalog to publish to")
+    price: Optional[str] = Field(None, description="Price (e.g. '0', '99.99')")
+    delivery_time: Optional[str] = Field(None, description="Estimated delivery time (e.g. '1 00:00:00' for 1 day)")
+    fulfillment_group: Optional[str] = Field(None, description="sys_id of the group responsible for fulfillment")
+    workflow: Optional[str] = Field(None, description="sys_id of the workflow to trigger on request")
+    active: bool = Field(True, description="Whether the item is visible in the catalog")
+    order: Optional[int] = Field(None, description="Display order within the category")
+    icon: Optional[str] = Field(None, description="Icon image sys_id or URL")
+
+
+class CreateRecordProducerParams(BaseModel):
+    """Parameters for creating a new record producer."""
+
+    name: str = Field(..., description="Display name of the record producer")
+    short_description: str = Field(..., description="Brief description shown in the catalog")
+    table: str = Field(..., description="Target table where submitted records will be created (e.g. 'incident')")
+    description: Optional[str] = Field(None, description="Full HTML description shown on the item page")
+    category: Optional[str] = Field(None, description="sys_id of the sc_category to place the producer in")
+    sc_catalogs: Optional[str] = Field(None, description="sys_id of the service catalog to publish to")
+    script: Optional[str] = Field(None, description="Server-side script to transform variable values into record fields")
+    active: bool = Field(True, description="Whether the producer is visible in the catalog")
+    order: Optional[int] = Field(None, description="Display order within the category")
 
 
 def list_catalog_items(
@@ -537,6 +568,149 @@ def update_catalog_category(
         return CatalogResponse(
             success=False,
             message=f"Error updating catalog category: {str(e)}",
+            data=None,
+        )
+
+
+def create_catalog_item(
+    config: ServerConfig,
+    auth_manager: AuthManager,
+    params: CreateCatalogItemParams,
+) -> CatalogResponse:
+    """
+    Create a new service catalog item (sc_cat_item) in ServiceNow.
+
+    Args:
+        config: Server configuration
+        auth_manager: Authentication manager
+        params: Parameters for the new catalog item
+
+    Returns:
+        Response containing the created item's sys_id and details
+    """
+    logger.info("Creating new service catalog item: %s", params.name)
+
+    url = f"{config.instance_url}/api/now/table/sc_cat_item"
+
+    body: Dict[str, Any] = {
+        "name": params.name,
+        "short_description": params.short_description,
+        "active": str(params.active).lower(),
+    }
+    if params.description is not None:
+        body["description"] = params.description
+    if params.category is not None:
+        body["category"] = params.category
+    if params.sc_catalogs is not None:
+        body["sc_catalogs"] = params.sc_catalogs
+    if params.price is not None:
+        body["price"] = params.price
+    if params.delivery_time is not None:
+        body["delivery_time"] = params.delivery_time
+    if params.fulfillment_group is not None:
+        body["fulfillment_group"] = params.fulfillment_group
+    if params.workflow is not None:
+        body["workflow"] = params.workflow
+    if params.order is not None:
+        body["order"] = str(params.order)
+    if params.icon is not None:
+        body["icon"] = params.icon
+
+    headers = auth_manager.get_headers()
+    headers["Accept"] = "application/json"
+    headers["Content-Type"] = "application/json"
+
+    try:
+        response = requests.post(url, headers=headers, json=body)
+        response.raise_for_status()
+        item = response.json().get("result", {})
+        return CatalogResponse(
+            success=True,
+            message=f"Created catalog item: {item.get('name', params.name)}",
+            data={
+                "sys_id": item.get("sys_id"),
+                "name": item.get("name"),
+                "short_description": item.get("short_description"),
+                "category": item.get("category"),
+                "active": item.get("active"),
+                "order": item.get("order"),
+            },
+        )
+    except requests.exceptions.RequestException as e:
+        logger.error("Error creating catalog item: %s", e)
+        return CatalogResponse(
+            success=False,
+            message=f"Error creating catalog item: {str(e)}",
+            data=None,
+        )
+
+
+def create_record_producer(
+    config: ServerConfig,
+    auth_manager: AuthManager,
+    params: CreateRecordProducerParams,
+) -> CatalogResponse:
+    """
+    Create a new record producer (sc_cat_item_producer) in ServiceNow.
+
+    A record producer is a catalog item that creates a record in a specified
+    table when submitted, rather than fulfilling a service request.
+
+    Args:
+        config: Server configuration
+        auth_manager: Authentication manager
+        params: Parameters for the new record producer
+
+    Returns:
+        Response containing the created producer's sys_id and details
+    """
+    logger.info("Creating new record producer: %s -> %s", params.name, params.table)
+
+    url = f"{config.instance_url}/api/now/table/sc_cat_item_producer"
+
+    body: Dict[str, Any] = {
+        "name": params.name,
+        "short_description": params.short_description,
+        "table_name": params.table,
+        "active": str(params.active).lower(),
+    }
+    if params.description is not None:
+        body["description"] = params.description
+    if params.category is not None:
+        body["category"] = params.category
+    if params.sc_catalogs is not None:
+        body["sc_catalogs"] = params.sc_catalogs
+    if params.script is not None:
+        body["script"] = params.script
+    if params.order is not None:
+        body["order"] = str(params.order)
+
+    headers = auth_manager.get_headers()
+    headers["Accept"] = "application/json"
+    headers["Content-Type"] = "application/json"
+
+    try:
+        response = requests.post(url, headers=headers, json=body)
+        response.raise_for_status()
+        item = response.json().get("result", {})
+        return CatalogResponse(
+            success=True,
+            message=f"Created record producer: {item.get('name', params.name)}",
+            data={
+                "sys_id": item.get("sys_id"),
+                "name": item.get("name"),
+                "short_description": item.get("short_description"),
+                "table_name": item.get("table_name"),
+                "category": item.get("category"),
+                "active": item.get("active"),
+                "order": item.get("order"),
+            },
+        )
+    except requests.exceptions.RequestException as e:
+        logger.error("Error creating record producer: %s", e)
+        return CatalogResponse(
+            success=False,
+            message=f"Error creating record producer: {str(e)}",
             data=None,
         )
 

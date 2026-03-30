@@ -9,6 +9,8 @@ from servicenow_mcp.tools.catalog_optimization import (
 )
 from servicenow_mcp.tools.catalog_tools import (
     create_catalog_category,
+    create_catalog_item,
+    create_record_producer,
     get_catalog_item,
     list_catalog_categories,
     list_catalog_items,
@@ -75,6 +77,12 @@ from servicenow_mcp.tools.user_tools import (
     remove_group_members,
     list_groups,
 )
+from servicenow_mcp.tools.table_api_tools import (
+    create_record,
+    get_record,
+    query_records,
+    update_record,
+)
 from servicenow_mcp.tools.workflow_tools import (
     activate_workflow,
     add_workflow_activity,
@@ -104,6 +112,8 @@ __all__ = [
     # Catalog tools
     "list_catalog_items",
     "get_catalog_item",
+    "create_catalog_item",
+    "create_record_producer",
     "list_catalog_categories",
     "create_catalog_category",
     "update_catalog_category",
@@ -176,6 +186,12 @@ __all__ = [
     "remove_group_members",
     "list_groups",
     
+    # Generic Table API tools
+    "get_record",
+    "query_records",
+    "create_record",
+    "update_record",
+
     # Future tools
     # "create_problem",
     # "update_problem",

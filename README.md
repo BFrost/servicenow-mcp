@@ -142,13 +142,15 @@ The ServiceNow MCP server provides the following tools:
 
 1. **list_catalog_items** - List service catalog items from ServiceNow
 2. **get_catalog_item** - Get a specific service catalog item from ServiceNow
-3. **list_catalog_categories** - List service catalog categories from ServiceNow
-4. **create_catalog_category** - Create a new service catalog category in ServiceNow
-5. **update_catalog_category** - Update an existing service catalog category in ServiceNow
-6. **move_catalog_items** - Move catalog items between categories in ServiceNow
-7. **create_catalog_item_variable** - Create a new variable (form field) for a catalog item
-8. **list_catalog_item_variables** - List all variables for a catalog item
-9. **update_catalog_item_variable** - Update an existing variable for a catalog item
+3. **create_catalog_item** - Create a new service catalog item (`sc_cat_item`) with full field support (category, price, delivery time, fulfillment group, workflow, etc.)
+4. **create_record_producer** - Create a new record producer (`sc_cat_item_producer`) that creates a record in a target table when submitted, with optional transform script
+5. **list_catalog_categories** - List service catalog categories from ServiceNow
+6. **create_catalog_category** - Create a new service catalog category in ServiceNow
+7. **update_catalog_category** - Update an existing service catalog category in ServiceNow
+8. **move_catalog_items** - Move catalog items between categories in ServiceNow
+9. **create_catalog_item_variable** - Create a new variable (form field) for a catalog item
+10. **list_catalog_item_variables** - List all variables for a catalog item
+11. **update_catalog_item_variable** - Update an existing variable for a catalog item
 
 #### Catalog Optimization Tools
 
@@ -191,6 +193,15 @@ The ServiceNow MCP server provides the following tools:
 5. **commit_changeset** - Commit a changeset
 6. **publish_changeset** - Publish a changeset
 7. **add_file_to_changeset** - Add a file to a changeset
+
+#### Generic Table API Tools
+
+Direct access to any ServiceNow table without requiring a purpose-built tool.
+
+1. **get_record** - Retrieve a single record from any table by `sys_id`, with optional field selection and display-value support
+2. **query_records** - Query multiple records using an encoded query string, with field selection, pagination, and ordering
+3. **create_record** - Create a new record in any table with arbitrary field values
+4. **update_record** - Partially update an existing record (PATCH) in any table by `sys_id`
 
 #### Update Set Management Tools
 
@@ -289,6 +300,11 @@ Once the ServiceNow MCP server is configured with Claude Desktop, you can ask Cl
 - "Make the department field mandatory in the software request form"
 - "Update the help text for the cost center field"
 
+- "Create a new catalog item called 'VPN Access Request' in the Network Services category"
+- "Create a catalog item for a laptop request with a price of 1200 and 3-day delivery time"
+- "Create a record producer called 'Report an Incident' that creates a record in the incident table"
+- "Create a record producer for submitting change requests with a script that maps the form fields"
+
 #### Catalog Optimization Examples
 - "Analyze our service catalog and identify opportunities for improvement"
 - "Find catalog items with poor descriptions that need improvement"
@@ -329,6 +345,16 @@ Once the ServiceNow MCP server is configured with Claude Desktop, you can ask Cl
 - "Publish changeset 'sys_update_set_123' to production"
 - "Add a file to changeset 'sys_update_set_123'"
 - "Show me all changes in changeset 'sys_update_set_123'"
+
+#### Generic Table API Examples
+- "Get the incident record with sys_id abc123"
+- "Query all active users in the sys_user table"
+- "Find all sys_user_preference records where name is sys_update_set"
+- "List the last 5 records created in the sc_req_item table"
+- "Create a record in sys_user_preference with name=my_pref and value=enabled"
+- "Update the state field of record abc123 in the change_request table to -5"
+- "Query the sys_update_set table for all update sets in progress, ordered by sys_created_on"
+- "Get the number, short_description, and state fields from incident INC0010001"
 
 #### Update Set Management Examples
 - "Create a new update set called 'Sprint 42 changes'"

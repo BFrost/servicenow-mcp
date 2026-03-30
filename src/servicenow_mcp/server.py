@@ -25,6 +25,8 @@ from servicenow_mcp.tools.catalog_optimization import (
 )
 from servicenow_mcp.tools.catalog_tools import (
     CreateCatalogCategoryParams,
+    CreateCatalogItemParams,
+    CreateRecordProducerParams,
     GetCatalogItemParams,
     ListCatalogCategoriesParams,
     ListCatalogItemsParams,
@@ -33,6 +35,12 @@ from servicenow_mcp.tools.catalog_tools import (
 )
 from servicenow_mcp.tools.catalog_tools import (
     create_catalog_category as create_catalog_category_tool,
+)
+from servicenow_mcp.tools.catalog_tools import (
+    create_catalog_item as create_catalog_item_tool,
+)
+from servicenow_mcp.tools.catalog_tools import (
+    create_record_producer as create_record_producer_tool,
 )
 from servicenow_mcp.tools.catalog_tools import (
     get_catalog_item as get_catalog_item_tool,
@@ -213,6 +221,16 @@ from servicenow_mcp.tools.script_include_tools import (
 from servicenow_mcp.tools.script_include_tools import (
     update_script_include as update_script_include_tool,
 )
+from servicenow_mcp.tools.table_api_tools import (
+    CreateRecordParams,
+    GetRecordParams,
+    QueryRecordsParams,
+    UpdateRecordParams,
+)
+from servicenow_mcp.tools.table_api_tools import create_record as create_record_tool
+from servicenow_mcp.tools.table_api_tools import get_record as get_record_tool
+from servicenow_mcp.tools.table_api_tools import query_records as query_records_tool
+from servicenow_mcp.tools.table_api_tools import update_record as update_record_tool
 from servicenow_mcp.tools.update_set_tools import (
     CompleteUpdateSetParams,
     CreateUpdateSetParams,
@@ -405,6 +423,20 @@ class ServiceNowMCP:
             """Create a new service catalog category."""
             return json.dumps(
                 create_catalog_category_tool(self.config, self.auth_manager, params).dict()
+            )
+
+        @self.mcp_server.tool()
+        def create_catalog_item(params: CreateCatalogItemParams) -> str:
+            """Create a new service catalog item in ServiceNow"""
+            return json.dumps(
+                create_catalog_item_tool(self.config, self.auth_manager, params).dict()
+            )
+
+        @self.mcp_server.tool()
+        def create_record_producer(params: CreateRecordProducerParams) -> str:
+            """Create a new record producer in the ServiceNow service catalog"""
+            return json.dumps(
+                create_record_producer_tool(self.config, self.auth_manager, params).dict()
             )
 
         @self.mcp_server.tool()
@@ -813,6 +845,27 @@ class ServiceNowMCP:
         def list_update_sets(params: ListUpdateSetsParams) -> Dict[str, Any]:
             """List update sets from ServiceNow"""
             return list_update_sets_tool(self.config, self.auth_manager, params)
+
+        # Register generic Table API tools
+        @self.mcp_server.tool()
+        def get_record(params: GetRecordParams) -> Dict[str, Any]:
+            """Get a single record from any ServiceNow table by sys_id"""
+            return get_record_tool(self.config, self.auth_manager, params)
+
+        @self.mcp_server.tool()
+        def query_records(params: QueryRecordsParams) -> Dict[str, Any]:
+            """Query records from any ServiceNow table using an encoded query string"""
+            return query_records_tool(self.config, self.auth_manager, params)
+
+        @self.mcp_server.tool()
+        def create_record(params: CreateRecordParams) -> Dict[str, Any]:
+            """Create a new record in any ServiceNow table"""
+            return create_record_tool(self.config, self.auth_manager, params)
+
+        @self.mcp_server.tool()
+        def update_record(params: UpdateRecordParams) -> Dict[str, Any]:
+            """Update an existing record in any ServiceNow table by sys_id"""
+            return update_record_tool(self.config, self.auth_manager, params)
 
     def start(self):
         """Start the MCP server."""

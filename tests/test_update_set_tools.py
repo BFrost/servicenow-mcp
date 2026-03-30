@@ -132,21 +132,20 @@ class TestSetCurrentUpdateSet(unittest.TestCase):
         self.config = _make_config()
         self.auth_manager = _make_auth_manager()
 
-    @patch("servicenow_mcp.tools.update_set_tools.requests.get")
     @patch("servicenow_mcp.tools.update_set_tools.requests.post")
-    def test_set_current_by_sys_id(self, mock_post, mock_get):
-        """When a valid sys_id is given, should POST to sys_user_preference."""
-        # mock_get is only called for the name-lookup at the end
-        mock_get.return_value = MagicMock(
-            json=lambda: {"result": {"name": "My Set"}},
-            raise_for_status=lambda: None,
-        )
+    def test_set_current_success(self, mock_post):
+        """A successful call should return the update set id and name from the API response."""
+        sys_id = "a" * 32
         mock_post.return_value = MagicMock(
-            json=lambda: {"result": {}},
+            json=lambda: {
+                "success": True,
+                "message": "Current update set changed successfully",
+                "update_set_id": sys_id,
+                "update_set_name": "My Set",
+            },
             raise_for_status=lambda: None,
         )
 
-        sys_id = "a" * 32  # valid 32-char hex-like id
         result = set_current_update_set(
             self.config, self.auth_manager, SetCurrentUpdateSetParams(update_set_id=sys_id)
         )
@@ -155,57 +154,68 @@ class TestSetCurrentUpdateSet(unittest.TestCase):
         self.assertEqual(result.update_set_id, sys_id)
         self.assertEqual(result.update_set_name, "My Set")
 
-        # Verify the preference POST was made
-        _, kwargs = mock_post.call_args
-        self.assertEqual(kwargs["json"]["name"], "sys_update_set")
-        self.assertEqual(kwargs["json"]["value"], sys_id)
-
-    @patch("servicenow_mcp.tools.update_set_tools.requests.get")
     @patch("servicenow_mcp.tools.update_set_tools.requests.post")
-    def test_set_current_by_name_resolves_sys_id(self, mock_post, mock_get):
-        """When a name is given, should first resolve it to a sys_id via GET."""
-        resolved_id = "b" * 32
-
-        def get_side_effect(url, **kwargs):
-            mock_resp = MagicMock()
-            mock_resp.raise_for_status.return_value = None
-            if "sysparm_query" in kwargs.get("params", {}):
-                # Resolution query
-                mock_resp.json.return_value = {"result": [{"sys_id": resolved_id}]}
-            else:
-                # Name fetch after setting preference
-                mock_resp.json.return_value = {"result": {"name": "Named Set"}}
-            return mock_resp
-
-        mock_get.side_effect = get_side_effect
+    def test_set_current_calls_scripted_rest_endpoint(self, mock_post):
+        """Should POST to the ServiceNow MCP Scripted REST API, not sys_user_preference."""
         mock_post.return_value = MagicMock(
-            json=lambda: {"result": {}}, raise_for_status=lambda: None
+            json=lambda: {"success": True, "message": "", "update_set_id": "x", "update_set_name": "x"},
+            raise_for_status=lambda: None,
+        )
+
+        set_current_update_set(
+            self.config, self.auth_manager,
+            SetCurrentUpdateSetParams(update_set_id="some-id"),
+        )
+
+        url = mock_post.call_args[0][0]
+        self.assertIn("x_83547_servicen_0/servicenow_mcp/update_set/current", url)
+        self.assertNotIn("sys_user_preference", url)
+
+    @patch("servicenow_mcp.tools.update_set_tools.requests.post")
+    def test_set_current_passes_update_set_id_in_body(self, mock_post):
+        """The update_set_id should be forwarded as-is in the request body."""
+        mock_post.return_value = MagicMock(
+            json=lambda: {"success": True, "message": "", "update_set_id": "x", "update_set_name": "x"},
+            raise_for_status=lambda: None,
+        )
+
+        set_current_update_set(
+            self.config, self.auth_manager,
+            SetCurrentUpdateSetParams(update_set_id="My Update Set"),
+        )
+
+        body = mock_post.call_args[1]["json"]
+        self.assertEqual(body["update_set_id"], "My Update Set")
+
+    @patch("servicenow_mcp.tools.update_set_tools.requests.post")
+    def test_set_current_not_found(self, mock_post):
+        """A 404 response from the scripted API should return success=False."""
+        import requests as req
+        http_err = req.HTTPError(response=MagicMock(status_code=404))
+        mock_post.return_value = MagicMock(
+            raise_for_status=MagicMock(side_effect=http_err)
         )
 
         result = set_current_update_set(
-            self.config,
-            self.auth_manager,
-            SetCurrentUpdateSetParams(update_set_id="Named Set"),
-        )
-
-        self.assertTrue(result.success)
-        self.assertEqual(result.update_set_id, resolved_id)
-
-    @patch("servicenow_mcp.tools.update_set_tools.requests.get")
-    def test_set_current_not_found(self, mock_get):
-        """When the update set cannot be resolved, should return success=False."""
-        mock_get.return_value = MagicMock(
-            json=lambda: {"result": []}, raise_for_status=lambda: None
-        )
-
-        result = set_current_update_set(
-            self.config,
-            self.auth_manager,
+            self.config, self.auth_manager,
             SetCurrentUpdateSetParams(update_set_id="Nonexistent"),
         )
 
         self.assertFalse(result.success)
-        self.assertIn("not found", result.message)
+
+    @patch("servicenow_mcp.tools.update_set_tools.requests.post")
+    def test_set_current_network_error(self, mock_post):
+        """A network error should return success=False with the error message."""
+        import requests as req
+        mock_post.side_effect = req.RequestException("connection refused")
+
+        result = set_current_update_set(
+            self.config, self.auth_manager,
+            SetCurrentUpdateSetParams(update_set_id="some-id"),
+        )
+
+        self.assertFalse(result.success)
+        self.assertIn("connection refused", result.message)
 
 
 # ---------------------------------------------------------------------------

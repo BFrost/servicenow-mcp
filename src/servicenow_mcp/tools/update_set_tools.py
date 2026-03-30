@@ -116,6 +116,10 @@ def set_current_update_set(
     """
     Set the current update set for the authenticated user's session.
 
+    Delegates to the ServiceNow MCP Scripted REST API which uses
+    setWorkflow(false) internally, preventing the preference write from
+    being captured in the active update set.
+
     Args:
         config: Server configuration.
         auth_manager: Authentication manager.
@@ -124,43 +128,22 @@ def set_current_update_set(
     Returns:
         Response indicating success or failure.
     """
-    update_set_id = _resolve_update_set_id(config, auth_manager, params.update_set_id)
-    if not update_set_id:
-        return UpdateSetResponse(
-            success=False,
-            message=f"Update set not found: {params.update_set_id}",
-        )
+    url = f"{config.instance_url}/api/x_83547_servicen_0/servicenow_mcp/update_set/current"
 
     try:
-        # Store the current update set preference for the authenticated user
-        pref_url = f"{config.api_url}/table/sys_user_preference"
-        data = {
-            "name": "sys_update_set",
-            "value": update_set_id,
-            "user": "",  # empty string targets the current user
-        }
         response = requests.post(
-            pref_url,
-            json=data,
+            url,
+            json={"update_set_id": params.update_set_id},
             headers=auth_manager.get_headers(),
             timeout=config.timeout,
         )
         response.raise_for_status()
-
-        # Fetch the update set name for a helpful response message
-        rec = requests.get(
-            f"{config.api_url}/table/sys_update_set/{update_set_id}",
-            headers=auth_manager.get_headers(),
-            timeout=config.timeout,
-        )
-        rec.raise_for_status()
-        name = rec.json().get("result", {}).get("name")
-
+        result = response.json()
         return UpdateSetResponse(
-            success=True,
-            message="Current update set changed successfully",
-            update_set_id=update_set_id,
-            update_set_name=name,
+            success=result.get("success", False),
+            message=result.get("message", ""),
+            update_set_id=result.get("update_set_id"),
+            update_set_name=result.get("update_set_name"),
         )
     except requests.RequestException as e:
         logger.error(f"Failed to set current update set: {e}")

@@ -15,13 +15,73 @@ from servicenow_mcp.utils.config import ServerConfig
 
 logger = logging.getLogger(__name__)
 
+# Mapping of human-readable type names to ServiceNow numeric type codes
+# stored in the item_option_new.type field.
+VARIABLE_TYPE_MAP: Dict[str, str] = {
+    # Single line
+    "string": "6",
+    "single_line_text": "6",
+    "wide_single_line_text": "18",
+    # Multi line
+    "multi_line_text": "2",
+    # Reference
+    "reference": "8",
+    # Boolean / checkbox
+    "boolean": "1",
+    "yes_no": "1",
+    "checkbox": "7",
+    # Numeric
+    "integer": "4",
+    "numeric_scale": "4",
+    # Selections
+    "select_box": "5",
+    "multiple_choice": "3",
+    "lookup_select_box": "24",
+    "lookup_multiple_choice": "25",
+    # Date / time
+    "date": "9",
+    "date_time": "10",
+    "duration": "23",
+    # Text / markup
+    "label": "14",
+    "masked": "19",
+    # Contact info
+    "email": "20",
+    "url": "21",
+    "ip_address": "22",
+}
+
+# Mapping of human-readable width values to ServiceNow variable_width choice values.
+# The variable_width field controls the rendered column width of the variable in the portal.
+VARIABLE_WIDTH_MAP: Dict[str, str] = {
+    "25%": "25",
+    "50%": "50",
+    "75%": "75",
+    "100%": "100",
+    "25": "25",
+    "50": "50",
+    "75": "75",
+    "100": "100",
+    "default": "NULL_OVERRIDE",
+    "system_default": "NULL_OVERRIDE",
+}
+
 
 class CreateCatalogItemVariableParams(BaseModel):
     """Parameters for creating a catalog item variable."""
 
     catalog_item_id: str = Field(..., description="The sys_id of the catalog item")
     name: str = Field(..., description="The name of the variable (internal name)")
-    type: str = Field(..., description="The type of variable (e.g., string, integer, boolean, reference)")
+    type: str = Field(
+        ...,
+        description=(
+            "The type of variable. Accepted values: string, single_line_text, "
+            "wide_single_line_text, multi_line_text, reference, boolean, yes_no, "
+            "checkbox, integer, numeric_scale, select_box, multiple_choice, "
+            "lookup_select_box, lookup_multiple_choice, date, date_time, duration, "
+            "label, masked, email, url, ip_address"
+        ),
+    )
     label: str = Field(..., description="The display label for the variable")
     mandatory: bool = Field(False, description="Whether the variable is required")
     help_text: Optional[str] = Field(None, description="Help text to display with the variable")
@@ -33,6 +93,10 @@ class CreateCatalogItemVariableParams(BaseModel):
     max_length: Optional[int] = Field(None, description="Maximum length for string fields")
     min: Optional[int] = Field(None, description="Minimum value for numeric fields")
     max: Optional[int] = Field(None, description="Maximum value for numeric fields")
+    width: Optional[str] = Field(
+        None,
+        description="Column width of the variable in the portal. Accepted values: 25%, 50%, 75%, 100%, default",
+    )
 
 
 class CatalogItemVariableResponse(BaseModel):
@@ -76,6 +140,10 @@ class UpdateCatalogItemVariableParams(BaseModel):
     max_length: Optional[int] = Field(None, description="Maximum length for string fields")
     min: Optional[int] = Field(None, description="Minimum value for numeric fields")
     max: Optional[int] = Field(None, description="Maximum value for numeric fields")
+    width: Optional[str] = Field(
+        None,
+        description="Column width of the variable in the portal. Accepted values: 25%, 50%, 75%, 100%, default",
+    )
 
 
 def create_catalog_item_variable(
@@ -96,11 +164,15 @@ def create_catalog_item_variable(
     """
     api_url = f"{config.instance_url}/api/now/table/item_option_new"
 
+    # Resolve human-readable type name to ServiceNow numeric type code.
+    # If the caller already passed a numeric string, use it as-is.
+    type_code = VARIABLE_TYPE_MAP.get(params.type.lower(), params.type)
+
     # Build request data
     data = {
         "cat_item": params.catalog_item_id,
         "name": params.name,
-        "type": params.type,
+        "type": type_code,
         "question_text": params.label,
         "mandatory": str(params.mandatory).lower(),  # ServiceNow expects "true"/"false" strings
     }
@@ -123,6 +195,8 @@ def create_catalog_item_variable(
         data["min"] = params.min
     if params.max is not None:
         data["max"] = params.max
+    if params.width is not None:
+        data["variable_width"] = VARIABLE_WIDTH_MAP.get(params.width, params.width)
 
     # Make request
     try:
@@ -254,6 +328,8 @@ def update_catalog_item_variable(
         data["min"] = params.min
     if params.max is not None:
         data["max"] = params.max
+    if params.width is not None:
+        data["variable_width"] = VARIABLE_WIDTH_MAP.get(params.width, params.width)
 
     # If no fields to update, return early
     if not data:
